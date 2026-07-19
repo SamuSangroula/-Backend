@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+dotenv.config();
 
 mongoose.connect("mongodb://localhost:27017/record_keeping_system");
 
@@ -13,7 +15,7 @@ e.use(cors());
 e.use(express.json());
 
 e.listen(5000);
-console.log("Server running on port 5000");
+console.log("Hi")
 
 const userSchema = new mongoose.Schema({
   name: String,
