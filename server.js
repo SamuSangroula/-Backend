@@ -104,65 +104,61 @@ e.get("/api/auth/me", protect, async function (req, res) {
   res.send(user);
 });
 
-
+// Gets all students
 e.get("/api/students", protect, async function (req, res) {
-  try {
-    const { search, status, page = 1, limit = 10 } = req.query;
-    const query = {};
-    if (search) {
-      query.$or = [
-        { fullName: { $regex: search, $options: "i" } },
-        { studentId: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-      ];
-    }
-    if (status) query.status = status;
-    const students = await Student.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit));
-    const total = await Student.countDocuments(query);
-    res.json({ data: students, total, page: Number(page), pages: Math.ceil(total / limit) });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+  const { search, status, page = 1, limit = 10 } = req.query;
+  const query = {};
+  if (search) {
+    query.$or = [
+      { fullName: { $regex: search, $options: "i" } },
+      { studentId: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+    ];
   }
+  if (status) query.status = status;
+
+  const students = await Student.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit));
+  const total = await Student.countDocuments(query);
+  res.send({ data: students, total, page: Number(page), pages: Math.ceil(total / limit) });
 });
 
+//get one student
 e.get("/api/students/:id", protect, async function (req, res) {
   const student = await Student.findById(req.params.id);
-  if (!student) return res.status(404).json({ message: "Student not found" });
-  res.json(student);
+  if (!student) return res.send("Student not found");
+  res.send(student);
 });
 
+//add student
 e.post("/api/students", protect, async function (req, res) {
-  try {
-    const { fullName, studentId, email, course } = req.body;
-    if (!fullName || !studentId || !email || !course) {
-      return res.status(400).json({ message: "Full name, student ID, email and course are required" });
-    }
-    const existing = await Student.findOne({ studentId });
-    if (existing) return res.status(400).json({ message: "Student ID already exists" });
-    const student = new Student({ ...req.body, createdBy: req.userId });
-    await student.save();
-    res.status(201).json(student);
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+  const { fullName, studentId, email, course } = req.body;
+  if (!fullName || !studentId || !email || !course) {
+    return res.send("Full name, student ID, email and course are required");
   }
+
+  const existing = await Student.findOne({ studentId });
+  if (existing) return res.send("Student ID already exists");
+
+  const student = new Student({ ...req.body, createdBy: req.userId });
+  await student.save();
+  res.send(student);
 });
 
+//update student
 e.put("/api/students/:id", protect, async function (req, res) {
-  try {
-    const student = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!student) return res.status(404).json({ message: "Student not found" });
-    res.json(student);
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
+  const student = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  if (!student) return res.send("Student not found");
+  res.send(student);
 });
 
+//delete student
 e.delete("/api/students/:id", protect, async function (req, res) {
   const student = await Student.findByIdAndDelete(req.params.id);
-  if (!student) return res.status(404).json({ message: "Student not found" });
-  res.json({ message: "Student deleted" });
+  if (!student) return res.send("Student not found");
+  res.send("Student deleted");
 });
 
+//health check
 e.get("/api/health", function (req, res) {
-  res.json({ status: "ok" });
+  res.send("ok");
 });
