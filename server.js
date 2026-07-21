@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -22,6 +23,8 @@ const userSchema = new mongoose.Schema({
   email: String,
   password: String,
   role: { type: String, default: "user" },
+  resetToken: String,
+  resetTokenExpiry: Date,
 });
 const User = mongoose.model("User", userSchema);
 
@@ -97,6 +100,36 @@ e.post("/api/auth/login", async function (req, res) {
   const token = jwt.sign({ id: user._id }, SECRET, { expiresIn: "7d" });
   res.send({ name: user.name, email: user.email, role: user.role, token });
 });
+
+//forgot password - creates a reset token
+e.post("/api/auth/forgot-password", async function (req, res) {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) return res.send("User not found");
+  const token = crypto.randomBytes(32).toString("hex"); // make a random secret code
+  user.resetToken = token; // save the code on this user
+  user.resetTokenExpiry = Date.now() + 15 * 60 * 1000; // code works for only 15 minutes
+  await user.save();
+  res.send({ message: "Reset link generated", token });
+});
+
+//reset password - checks the token and sets new password
+e.post("/api/auth/reset-password", async function (req, res) {
+  const { token, newPassword } = req.body;
+  // find the user who has this exact code, and code is still not expired
+  const user = await User.findOne({
+    resetToken: token,
+    resetTokenExpiry: { $gt: Date.now() },
+  });
+  if (!user) return res.send("Invalid or expired token");
+  const hashedPassword = await bcrypt.hash(newPassword, 10); // lock the new password
+  user.password = hashedPassword; // save new password
+  user.resetToken = undefined; // remove used code
+  user.resetTokenExpiry = undefined; // remove expiry too
+  await user.save();
+  res.send("Password Reset Successfully");
+});
+
 
 //get logged in user
 e.get("/api/auth/me", protect, async function (req, res) {
