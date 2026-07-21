@@ -10,6 +10,7 @@ mongoose.connect(process.env.MONGO_URI);
 
 const e = express();
 const SECRET = process.env.JWT_SECRET;
+
 e.use(cors());
 e.use(express.json());
 
@@ -41,10 +42,12 @@ const studentSchema = new mongoose.Schema({
 }, { timestamps: true });
 const Student = mongoose.model("Student", studentSchema);
 
+
+// Only allows users with the correct token.
 function protect(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Not authorized, no token" });
+    return res.status(401).send("Not authorized, no token");
   }
   const token = authHeader.split(" ")[1];
   try {
@@ -52,48 +55,55 @@ function protect(req, res, next) {
     req.userId = decoded.id;
     next();
   } catch (err) {
-    return res.status(401).json({ message: "Not authorized, invalid token" });
+    return res.status(401).send("Not authorized, invalid token");
   }
 }
 
+//register
 e.post("/api/auth/register", async function (req, res) {
-  try {
-    const { name, email, password, role } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, email and password are required" });
-    }
-    const existing = await User.findOne({ email });
-    if (existing) {
-      return res.status(400).json({ message: "Email already registered" });
-    }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ name, email, password: hashedPassword, role: role === "admin" ? "admin" : "user" });
-    await user.save();
-    const token = jwt.sign({ id: user._id }, SECRET, { expiresIn: "7d" });
-    res.status(201).json({ _id: user._id, name: user.name, email: user.email, role: user.role, token });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+  const { name, email, password, role } = req.body;
+
+  if (!name || !email || !password) {
+    return res.send("Name, email and password are required"); // check empty fields
   }
+
+  const existing = await User.findOne({ email });
+  if (existing) {
+    return res.send("Email already registered"); // check duplicate email
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10); // hash password
+  const user = new User({
+    name,
+    email,
+    password: hashedPassword,
+    role: role === "admin" ? "admin" : "user",
+  });
+  await user.save();
+
+  const token = jwt.sign({ id: user._id }, SECRET, { expiresIn: "7d" }); // create login token
+  res.send({ name: user.name, email: user.email, role: user.role, token });
 });
 
+//login
 e.post("/api/auth/login", async function (req, res) {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: "Invalid email or password" });
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ message: "Invalid email or password" });
-    const token = jwt.sign({ id: user._id }, SECRET, { expiresIn: "7d" });
-    res.json({ _id: user._id, name: user.name, email: user.email, role: user.role, token });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) return res.send("Invalid email or password");
+
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.send("Invalid email or password");
+
+  const token = jwt.sign({ id: user._id }, SECRET, { expiresIn: "7d" });
+  res.send({ name: user.name, email: user.email, role: user.role, token });
 });
 
+//get logged in user
 e.get("/api/auth/me", protect, async function (req, res) {
-  const user = await User.findById(req.userId);
-  res.json(user);
+  const user = await User.findById(req.userId); // find user from token
+  res.send(user);
 });
+
 
 e.get("/api/students", protect, async function (req, res) {
   try {
