@@ -6,11 +6,10 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 dotenv.config();
 
-mongoose.connect("mongodb://localhost:27017/record_keeping_system");
+mongoose.connect(process.env.MONGO_URI);
 
 const e = express();
-const SECRET = "change_this_secret_key";
-
+const SECRET = process.env.JWT_SECRET;
 e.use(cors());
 e.use(express.json());
 
